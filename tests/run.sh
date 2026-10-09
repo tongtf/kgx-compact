@@ -74,6 +74,28 @@ PY
 have_kgx()     { [ -x "${KGX_BIN:-/usr/bin/kgx}" ]; }
 have_py()      { python3 -c 'import gi' 2>/dev/null; }
 
+# The lowest Console this overlay is written against. Anything older has a different
+# window template, and kgx-patch.py will (correctly) refuse to patch it - so the
+# version-specific tests below must skip rather than fail on such a system.
+MIN_CONSOLE_MAJOR=51
+
+console_major() {
+    "${KGX_BIN:-/usr/bin/kgx}" --version 2>/dev/null \
+        | sed -n 's/^# KGX \([0-9][0-9]*\).*/\1/p' | head -n 1
+}
+
+console_supported() {
+    _m=$(console_major)
+    [ -n "$_m" ] || return 1
+    [ "$_m" -ge "$MIN_CONSOLE_MAJOR" ] 2>/dev/null
+}
+
+# `cmp` lives in diffutils, which a minimal Arch container does not have. cksum is
+# POSIX and lives in coreutils, which is always there.
+same_file() {
+    [ -f "$1" ] && [ -f "$2" ] && [ "$(cksum < "$1")" = "$(cksum < "$2")" ]
+}
+
 echo "kgx-compact test suite"
 echo
 
@@ -94,10 +116,10 @@ else
 fi
 echo
 
-if have_kgx; then
+if have_kgx && console_supported; then
 
 # --------------------------------------------------------------------- generator
-echo "overlay generator"
+echo "overlay generator (Console $(console_major))"
 rm -rf "$SANDBOX/gen"; mkdir -p "$SANDBOX/gen/upstream" "$SANDBOX/gen/overlay"
 if python3 "$SRC/tools/kgx-patch.py" --upstream-dir "$SANDBOX/gen/upstream" \
         --overlay-dir "$SANDBOX/gen/overlay" dump --out-dir "$SANDBOX/gen/upstream" >/dev/null 2>&1; then
@@ -107,10 +129,10 @@ else
 fi
 
 if python3 "$SRC/tools/kgx-patch.py" --upstream-dir "$SANDBOX/gen/upstream" \
-        --overlay-dir "$SANDBOX/gen/overlay" build >/dev/null 2>&1; then
+        --overlay-dir "$SANDBOX/gen/overlay" build >"$SANDBOX/build.out" 2>&1; then
     ok "build applies every edit"
 else
-    bad "build"
+    bad "build" "$(tail -3 "$SANDBOX/build.out")"
 fi
 
 if python3 - "$SANDBOX/gen/overlay/kgx-window.ui" <<'PY' 2>"$SANDBOX/gen.err"
@@ -140,7 +162,7 @@ fi
 mkdir -p "$SANDBOX/gen/overlay2"
 python3 "$SRC/tools/kgx-patch.py" --upstream-dir "$SANDBOX/gen/upstream" \
     --overlay-dir "$SANDBOX/gen/overlay2" build >/dev/null 2>&1
-if cmp -s "$SANDBOX/gen/overlay/kgx-window.ui" "$SANDBOX/gen/overlay2/kgx-window.ui"; then
+if same_file "$SANDBOX/gen/overlay/kgx-window.ui" "$SANDBOX/gen/overlay2/kgx-window.ui"; then
     ok "generator is deterministic"
 else
     bad "generator determinism"
@@ -216,7 +238,7 @@ assert "warns about unmarked kgx rules already in the stylesheet" \
 
 cp "$CSS" "$SANDBOX/css1"
 HOME="$SANDBOX/home" "$SRC/install.sh" >/dev/null 2>&1
-assert "reinstall is idempotent" cmp -s "$CSS" "$SANDBOX/css1"
+assert "reinstall is idempotent" same_file "$CSS" "$SANDBOX/css1"
 
 # Editing inside the managed block must be undone by a refresh.
 # Written via a temp file rather than `sed -i`, which is not portable (BSD sed and
@@ -229,7 +251,7 @@ refute "refresh replaces the managed block" grep -qF "min-height: 999px;" "$CSS"
 # --print-plan must write nothing.
 cp "$CSS" "$SANDBOX/css2"
 HOME="$SANDBOX/home" "$SRC/install.sh" --print-plan >/dev/null 2>&1
-assert "--print-plan writes nothing" cmp -s "$CSS" "$SANDBOX/css2"
+assert "--print-plan writes nothing" same_file "$CSS" "$SANDBOX/css2"
 
 HOME="$SANDBOX/home" "$SRC/install.sh" --uninstall >/dev/null 2>&1
 assert "uninstall removes the wrapper" test ! -f "$SANDBOX/home/.local/bin/kgx-compact"
@@ -271,7 +293,13 @@ fi
 echo
 
 else
-    echo "skip  generator / installer / overlay checks (no kgx binary at ${KGX_BIN:-/usr/bin/kgx})"
+    _why="no kgx binary at ${KGX_BIN:-/usr/bin/kgx}"
+    _m=$(console_major 2>/dev/null || true)
+    if [ -n "$_m" ] && [ "$_m" -lt "$MIN_CONSOLE_MAJOR" ] 2>/dev/null; then
+        _why="installed Console is $_m, this overlay targets $MIN_CONSOLE_MAJOR+"
+    fi
+    echo "skip  generator / installer / overlay checks ($_why)"
+    echo "      kgx-patch.py would refuse these on purpose; see docs/UPGRADING.md"
     echo
 fi
 

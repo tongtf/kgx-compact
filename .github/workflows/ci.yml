@@ -93,15 +93,19 @@ jobs:
         run: |
           useradd -m -s /bin/bash builder
           install -d -o builder -g builder /tmp/pkg
-      - name: Build the release tarball
+      - name: Stage the source tree
         run: |
-          # Relative paths on purpose: a container job's default working directory is
-          # the checkout, and $GITHUB_WORKSPACE is not a git repository from inside it.
+          # Staged with tar rather than `git archive`: actions/checkout inside a
+          # container job does not always leave a .git directory behind, and
+          # `git rev-parse` then fails with "not a git repository". The checked-out
+          # files are all that makepkg needs.
           set -eux
-          git rev-parse --show-toplevel
+          pwd
           version=$(sed -n 's/^pkgver=//p' pkg/PKGBUILD | head -n1)
-          git archive --format=tar.gz --prefix="kgx-compact-$version/" \
-            -o "/tmp/pkg/kgx-compact-$version.tar.gz" HEAD
+          prefix="kgx-compact-$version"
+          mkdir -p "/tmp/pkg/$prefix"
+          tar -cf - --exclude=./.git . | tar -C "/tmp/pkg/$prefix" -xf -
+          tar -C /tmp/pkg -czf "/tmp/pkg/$prefix.tar.gz" "$prefix"
           cp pkg/PKGBUILD /tmp/pkg/
           chown -R builder:builder /tmp/pkg
       - name: makepkg

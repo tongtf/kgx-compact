@@ -156,13 +156,19 @@ other fails the build rather than shipping a half-installed package.
 
 ## Requirements
 
-GNOME Console 51+, GNOME, GTK4, libadwaita, `binutils` (for `strings`), and Python 3
-with PyGObject for the checkers. The overlay and the launcher themselves need only a
-POSIX shell and coreutils.
+**GNOME Console 51 or newer.** This is a hard floor, not a preference: the overlay is
+patched against the window template that ships in 51, and `kgx-patch.py` deliberately
+*refuses* to patch a template it does not recognise. On anything older you get Console's
+normal title bar and a refusal message explaining why, which is the intended behaviour.
+
+Worth knowing if you are on Debian or Ubuntu: at the time of writing those ship GNOME 48
+and 46 respectively, so the version-specific checks skip there and the overlay will not
+apply. Nothing is broken — the tooling reports it plainly — but the feature needs Console
+51+.
 
 | | Arch | Debian / Ubuntu |
 | --- | --- | --- |
-| terminal | `gnome-console` | `gnome-console` |
+| terminal | `gnome-console` **51+** | `gnome-console` **51+** |
 | toolkit | `gtk4` `libadwaita` | `libgtk-4-1` `libadwaita-1-0` |
 | introspection | `python-gobject` | `python3-gi` `gir1.2-gtk-4.0` `gir1.2-adw-1` |
 | strings | `binutils` | `binutils` |
