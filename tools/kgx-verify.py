@@ -21,6 +21,8 @@ PATCH = os.path.join(HERE, "kgx-patch.py")
 
 
 def run(argv, label):
+    """Return the child's exit code. 2 means "skipped, no display", which is not a
+    failure - the widget-level CSS checks cannot run without a server."""
     print("=== %s ===" % label, flush=True)
     rc = subprocess.call(argv)
     print(flush=True)
@@ -50,22 +52,32 @@ def main():
                  "overlay type-check")
         failures += ["overlay: type-check"] if rc else []
 
+    skipped = []
+
     if do("css"):
         if os.path.exists(args.css):
             rc = run([sys.executable, CHECK_CSS, args.css], "stylesheet parses")
-            failures += ["css: parse"] if rc else []
+            if rc == 2:
+                skipped.append("css: parse (no display)")
+            elif rc:
+                failures.append("css: parse")
         else:
             print("=== stylesheet parses ===\nSKIP: %s does not exist\n" % args.css)
 
     if do("match"):
-        if os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"):
-            if os.path.exists(args.css):
-                rc = run([sys.executable, CHECK_MATCH, args.css],
-                         "selectors match real widgets")
-                failures += ["css: selectors"] if rc else []
+        if os.path.exists(args.css):
+            rc = run([sys.executable, CHECK_MATCH, args.css],
+                     "selectors match real widgets")
+            if rc == 2:
+                skipped.append("css: selectors (no display)")
+            elif rc:
+                failures.append("css: selectors")
         else:
             print("=== selectors match real widgets ===\n"
-                  "SKIP: no DISPLAY/WAYLAND_DISPLAY\n")
+                  "SKIP: %s does not exist\n" % args.css)
+
+    for note in skipped:
+        print("SKIPPED: %s" % note)
 
     if failures:
         print("FAILED: %s" % ", ".join(failures))

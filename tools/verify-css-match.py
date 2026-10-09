@@ -10,6 +10,8 @@ The tree mirrors the overlay: window.terminal-window > box.compact-tab-bar >
 AdwTabBar > revealer > box.box > scrolledwindow > AdwTabBox.
 
 Usage: verify-css-match.py <css-file>
+
+Exit codes: 0 pass, 1 fail, 2 skipped (no usable display).
 """
 import os
 import re
@@ -18,10 +20,18 @@ import sys
 import gi
 
 gi.require_version("Gtk", "4.0")
+gi.require_version("Gdk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Gtk, Adw  # noqa: E402
+from gi.repository import Gtk, Gdk, Adw  # noqa: E402
 
 Gtk.init_check()
+
+if Gdk.Display.get_default() is None:
+    # Gtk.init_check() returns True even with no display, so it cannot be trusted to
+    # tell us whether real widgets can be built. They cannot: skip rather than fail.
+    print("SKIP: no usable display")
+    sys.exit(2)
+
 Adw.init()
 
 CSS = sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser("~/.config/gtk-4.0/gtk.css")

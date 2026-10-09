@@ -5,6 +5,8 @@ Gtk.CssProvider, and logs them as GTK_CSS warnings at runtime. Neither is fatal,
 a typo in the user stylesheet fails silently apart from the terminal log - check it.
 
 Usage: check-css.py [file ...]   (defaults to the GTK4 user stylesheet)
+
+Exit codes: 0 pass, 1 fail, 2 skipped (no usable display).
 """
 import os
 import re
@@ -13,9 +15,17 @@ import sys
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gtk  # noqa: E402  (needs the namespace pinned first)
+gi.require_version("Gdk", "4.0")
+from gi.repository import Gdk, Gtk  # noqa: E402  (needs the namespace pinned first)
 
 Gtk.init_check()
+
+if Gdk.Display.get_default() is None:
+    # Gtk.init_check() returns True even with no display at all, so it is not something
+    # to trust. With no server behind it this check simply cannot run, which is a skip
+    # rather than a failure.
+    print("SKIP: no usable display")
+    sys.exit(2)
 
 DEFAULT = os.path.join(
     os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"),

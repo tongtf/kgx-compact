@@ -53,7 +53,24 @@ fresh_home() {
     printf '/* user rules */\nwindow.mine { color: red; }\n' > "$SANDBOX/home/.config/gtk-4.0/gtk.css"
 }
 
-have_display() { [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; }
+# A display being *set* is not the same as one being *usable*. Note that
+# Gtk.init_check() is no help: it returns True with no display at all. The reliable
+# signal is whether Gdk managed to open one.
+#
+# Exit code 2 from a checker means "skipped, no display", which is not a failure.
+have_display() {
+    [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] || return 1
+    have_py || return 1
+    python3 - <<'PY' 2>/dev/null
+import sys
+import gi
+gi.require_version("Gtk", "4.0")
+gi.require_version("Gdk", "4.0")
+from gi.repository import Gtk, Gdk
+Gtk.init_check()
+sys.exit(0 if Gdk.Display.get_default() is not None else 1)
+PY
+}
 have_kgx()     { [ -x "${KGX_BIN:-/usr/bin/kgx}" ]; }
 have_py()      { python3 -c 'import gi' 2>/dev/null; }
 
@@ -271,19 +288,25 @@ if have_display && have_py; then
     else
         bad "selector matching"
     fi
-    # Negative control: a typo'd node name must be rejected, not silently pass.
+    # Negative controls. These assert on the *reason* for failure, not merely that the
+    # exit code was non-zero: a checker that fails for any reason at all would otherwise
+    # "pass" these, which is how a broken checker looks like a working one.
     sed 's/ tabbar \.box/ tabbarXYZ .box/' "$SRC/src/gtk.css" > "$SANDBOX/bad.css"
-    if python3 "$SRC/tools/verify-css-match.py" "$SANDBOX/bad.css" >/dev/null 2>&1; then
+    if python3 "$SRC/tools/verify-css-match.py" "$SANDBOX/bad.css" >"$SANDBOX/bad.out" 2>&1; then
         bad "verifier accepted a selector that matches nothing"
+    elif grep -q "NO MATCH" "$SANDBOX/bad.out"; then
+        ok "verifier rejects a selector that matches nothing (for the right reason)"
     else
-        ok "verifier rejects a selector that matches nothing"
+        bad "verifier failed for the wrong reason" "$(tail -3 "$SANDBOX/bad.out")"
     fi
-    # And an empty stylesheet must not count as a pass either.
+    # An empty stylesheet must not count as a pass either.
     printf '/* nothing */\n' > "$SANDBOX/empty.css"
-    if python3 "$SRC/tools/verify-css-match.py" "$SANDBOX/empty.css" >/dev/null 2>&1; then
+    if python3 "$SRC/tools/verify-css-match.py" "$SANDBOX/empty.css" >"$SANDBOX/empty.out" 2>&1; then
         bad "verifier accepted an empty stylesheet"
+    elif grep -q "no rules found" "$SANDBOX/empty.out"; then
+        ok "verifier rejects an empty stylesheet (for the right reason)"
     else
-        ok "verifier rejects an empty stylesheet"
+        bad "verifier failed for the wrong reason" "$(tail -3 "$SANDBOX/empty.out")"
     fi
 else
     skip "css widget checks (need DISPLAY/WAYLAND_DISPLAY and PyGObject)"

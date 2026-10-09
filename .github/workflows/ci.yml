@@ -21,7 +21,8 @@ jobs:
         # Only the POSIX shell scripts; everything under tools/ is Python.
         run: |
           shellcheck --shell=sh --external-sources \
-            install.sh src/kgx-compact tests/run.sh pkg/build-release.sh
+            install.sh src/kgx-compact tests/run.sh tests/with-display.sh \
+            pkg/build-release.sh
 
   # The suite runs against the installed Console, so it has to run where Console is
   # packaged. Package names differ per family, hence three explicit jobs rather than a
@@ -39,13 +40,10 @@ jobs:
           # The Xvfb server is xorg-server-xvfb on Arch; there is no `xvfb` package.
           pacman -Syu --noconfirm --needed --overwrite '*' \
             gnome-console gtk4 libadwaita python-gobject python xorg-server-xvfb binutils
-      - name: Start Xvfb
-        run: Xvfb :99 -screen 0 1280x1024x24 &
       - name: Run the suite
-        env:
-          DISPLAY: ":99"
-          GDK_BACKEND: x11
-        run: ./tests/run.sh
+        # with-display.sh starts Xvfb, waits for it to be genuinely usable, runs the
+        # suite, and tears it down. It is a no-op if a display already works.
+        run: tests/with-display.sh ./tests/run.sh
 
   tests-ubuntu:
     name: tests (ubuntu)
@@ -60,15 +58,9 @@ jobs:
             python3 python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 \
             libgtk-4-1 libadwaita-1-0
       - name: Run the suite
-        env:
-          DISPLAY: ":99"
-          GDK_BACKEND: x11
-        run: |
-          # GitHub's ubuntu images have no X server running; start one for the
-          # widget-level CSS checks.
-          Xvfb :99 -screen 0 1280x1024x24 &
-          sleep 2
-          ./tests/run.sh
+        # with-display.sh starts Xvfb, waits for it to be genuinely usable, runs the
+        # suite, and tears it down. It is a no-op if a display already works.
+        run: tests/with-display.sh ./tests/run.sh
 
   tests-debian:
     name: tests (debian)
@@ -84,13 +76,9 @@ jobs:
             python3 python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 \
             libgtk-4-1 libadwaita-1-0 ca-certificates
       - name: Run the suite
-        env:
-          DISPLAY: ":99"
-          GDK_BACKEND: x11
-        run: |
-          Xvfb :99 -screen 0 1280x1024x24 &
-          sleep 2
-          ./tests/run.sh
+        # with-display.sh starts Xvfb, waits for it to be genuinely usable, runs the
+        # suite, and tears it down. It is a no-op if a display already works.
+        run: tests/with-display.sh ./tests/run.sh
 
   pkg-arch:
     name: package (arch)
