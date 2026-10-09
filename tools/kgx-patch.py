@@ -383,10 +383,23 @@ def cmd_probe(args):
         if args.edit not in ("all", str(n)):
             continue
         try:
-            desc = edit(_copy.deepcopy(ET.parse(upstream).getroot().find("template")))
+            tpl = ET.parse(upstream).getroot().find("template")
+            if tpl is None:
+                # An older Console may not build its window from a <template> at all.
+                # Report that as a verdict rather than a traceback.
+                print("edit %d %-22s FAIL  no <template> element: this Console builds "
+                      "its window differently" % (n, edit.__name__ + ":"))
+                rc = 1
+                continue
+            desc = edit(_copy.deepcopy(tpl))
             print("edit %d %-22s OK    %s" % (n, edit.__name__ + ":", desc))
         except EditFailed as exc:
             print("edit %d %-22s FAIL  %s" % (n, edit.__name__ + ":", exc))
+            rc = 1
+        except Exception as exc:                      # noqa: BLE001
+            # An edit tripping over an unexpected shape is still just "incompatible".
+            print("edit %d %-22s FAIL  unexpected shape: %s: %s"
+                  % (n, edit.__name__ + ":", type(exc).__name__, exc))
             rc = 1
     return rc
 

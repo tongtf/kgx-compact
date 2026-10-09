@@ -19,6 +19,10 @@ months and its internal layout is not a stable API.
 Console 51+ on GNOME. Please include:
 
 ```sh
+tools/kgx-patch.py probe            # per-edit verdict against the installed Console
+```
+
+```sh
 kgx --version                     # which Console
 tools/kgx-verify.py all              # what the checkers say
 ```
@@ -31,6 +35,10 @@ and say which of these you hit:
   see, plus your `src/gtk.css` if you changed it.
 - **`kgx-patch.py build` refused.** Paste the full output. The refusal message names the
   element it expected and did not find, which is usually enough to diagnose.
+- **Asking whether an older Console can be supported.** Run `kgx-patch.py dump` then
+  `kgx-patch.py probe` on that release; the per-edit verdicts say exactly which parts
+  would need new work. Known results: 51 works, 48 partially (edits 2 and 3 do not
+  apply), 46 not at all (no `<template>` element in this shape).
 - **Console will not start.** This would be a bug in the overlay. Include the stderr
   from launching it directly:
   ```sh

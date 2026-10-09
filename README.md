@@ -156,15 +156,33 @@ other fails the build rather than shipping a half-installed package.
 
 ## Requirements
 
-**GNOME Console 51 or newer.** This is a hard floor, not a preference: the overlay is
-patched against the window template that ships in 51, and `kgx-patch.py` deliberately
-*refuses* to patch a template it does not recognise. On anything older you get Console's
-normal title bar and a refusal message explaining why, which is the intended behaviour.
+**GNOME Console 51 or newer.** This is a hard floor, and it is measured rather than
+assumed — see the table below.
 
-Worth knowing if you are on Debian or Ubuntu: at the time of writing those ship GNOME 48
-and 46 respectively, so the version-specific checks skip there and the overlay will not
-apply. Nothing is broken — the tooling reports it plainly — but the feature needs Console
-51+.
+### Which Console versions work
+
+The overlay is patched against a specific window template, and `kgx-patch.py` refuses to
+patch anything it does not recognise. That makes support a per-edit question, so it is
+answered by running the edits against each release's template:
+
+```sh
+tools/kgx-patch.py dump
+tools/kgx-patch.py probe            # per-edit verdict, with the reason
+```
+
+| Console | GNOME | Result |
+| --- | --- | --- |
+| 51 | 51 | **works** — all four edits apply |
+| 48 | 48 | 2 of 4 edits apply; `AdwTabOverview` has no `show-*-title-buttons`, and the header bar / tab bar are not the top children this expects |
+| 46 | 46 | none apply — the window is not built from a `<template>` element in this shape at all |
+
+CI runs this probe against Ubuntu 24.04 and Debian trixie on every push, so the table does
+not silently rot as distributions move.
+
+The practical consequence: on GNOME 46/48 the launcher starts **stock** Console and
+prints why, rather than half-applying the overlay. Making those work would mean a
+separate edit set per release, with the corresponding per-version CSS — the probe exists
+to tell you which edits would need writing.
 
 | | Arch | Debian / Ubuntu |
 | --- | --- | --- |
