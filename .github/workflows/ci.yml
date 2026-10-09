@@ -104,12 +104,16 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Console
+        # Never fatal: the point is to report what this runner actually has. A failed
+        # install must not be indistinguishable from "no Console here".
         run: |
-          apt-get update -qq
-          apt-get install -y -qq --no-install-recommends gnome-console python3 || true
-          apt-get install -y -qq --no-install-recommends binutils libgtk-4-1 libadwaita-1-0 || true
-          command -v kgx || { echo "no kgx on this runner"; exit 0; }
-          kgx --version
+          apt-get update -qq || true
+          apt-get install -y -qq gnome-console python3 binutils libgtk-4-1 libadwaita-1-0 || \
+            apt-get install -y -qq gnome-console python3 || true
+          echo "--- what apt sees ---"
+          apt-cache policy gnome-console || true
+          echo "--- what we got ---"
+          command -v kgx && kgx --version || echo "no kgx on this runner"
 
       - name: Extract the pristine templates
         run: |
@@ -118,15 +122,19 @@ jobs:
             --overlay-dir /tmp/probe/overlay dump --out-dir /tmp/probe/upstream
 
       - name: edit 1 - decorated
+        if: always()
         run: python3 tools/kgx-patch.py --upstream-dir /tmp/probe/upstream probe --edit 1
 
       - name: edit 2 - title buttons
+        if: always()
         run: python3 tools/kgx-patch.py --upstream-dir /tmp/probe/upstream probe --edit 2
 
       - name: edit 3 - compact strip
+        if: always()
         run: python3 tools/kgx-patch.py --upstream-dir /tmp/probe/upstream probe --edit 3
 
       - name: edit 4 - narrow breakpoint
+        if: always()
         run: python3 tools/kgx-patch.py --upstream-dir /tmp/probe/upstream probe --edit 4
 
   pkg-arch:
