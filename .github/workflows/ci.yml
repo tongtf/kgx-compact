@@ -80,6 +80,39 @@ jobs:
         # suite, and tears it down. It is a no-op if a display already works.
         run: tests/with-display.sh ./tests/run.sh
 
+  # Diagnostic: does the overlay generator work against whatever Console a runner
+  # happens to ship? The edits assert the structure they expect, so a pass means that
+  # distribution's template is compatible. Kept separate from the suite, which skips
+  # anything below Console 51 by design.
+  probe-generator:
+    name: generator probe (${{ matrix.label }})
+    runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { label: ubuntu-24.04, os: ubuntu-24.04, container: null }
+          - { label: debian-trixie, os: ubuntu-latest, container: "debian:latest" }
+          - { label: ubuntu-latest, os: ubuntu-latest, container: null }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Console
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends \
+            gnome-console python3 binutils libgtk-4-1 libadwaita-1-0
+      - name: Report the Console version
+        run: kgx --version || echo "no kgx"
+      - name: Run the generator
+        run: |
+          mkdir -p /tmp/probe/upstream /tmp/probe/overlay
+          python3 tools/kgx-patch.py --upstream-dir /tmp/probe/upstream \
+            --overlay-dir /tmp/probe/overlay dump --out-dir /tmp/probe/upstream
+          python3 tools/kgx-patch.py --upstream-dir /tmp/probe/upstream \
+            --overlay-dir /tmp/probe/overlay build
+
   pkg-arch:
     name: package (arch)
     runs-on: ubuntu-latest
