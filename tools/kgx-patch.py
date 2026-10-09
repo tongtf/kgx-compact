@@ -362,6 +362,35 @@ def cmd_check(args):
     return 0
 
 
+
+def cmd_probe(args):
+    """Report, per edit, whether it applies to the dumped upstream template.
+
+    Used by CI to answer "which Console versions does this overlay support?" without
+    anyone having to read a log: each edit is a separate step, and a step's red/green is
+    visible without repository admin rights. Prints the reason either way.
+    """
+    import copy as _copy
+    major, version = detect_major(args.kgx_bin)
+    upstream = os.path.join(args.upstream_dir, "kgx-window.ui")
+    if not os.path.exists(upstream):
+        print("no pristine template at %s - run `kgx-patch.py dump` first" % upstream)
+        return 1
+
+    print("Console %s, template %s" % (version, upstream))
+    rc = 0
+    for n, edit in enumerate(EDITS, start=1):
+        if args.edit not in ("all", str(n)):
+            continue
+        try:
+            desc = edit(_copy.deepcopy(ET.parse(upstream).getroot().find("template")))
+            print("edit %d %-22s OK    %s" % (n, edit.__name__ + ":", desc))
+        except EditFailed as exc:
+            print("edit %d %-22s FAIL  %s" % (n, edit.__name__ + ":", exc))
+            rc = 1
+    return rc
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -379,6 +408,11 @@ def main():
 
     p = sub.add_parser("check", help="report whether the overlay matches this Console")
     p.set_defaults(func=cmd_check)
+
+    p = sub.add_parser("probe",
+                       help="report per-edit whether it applies to the dumped template")
+    p.add_argument("--edit", default="all", help="1..N, or 'all'")
+    p.set_defaults(func=cmd_probe)
 
     args = parser.parse_args()
     try:

@@ -80,12 +80,17 @@ jobs:
         # suite, and tears it down. It is a no-op if a display already works.
         run: tests/with-display.sh ./tests/run.sh
 
-  # Diagnostic: does the overlay generator work against whatever Console a runner
-  # happens to ship? The edits assert the structure they expect, so a pass means that
-  # distribution's template is compatible. Kept separate from the suite, which skips
-  # anything below Console 51 by design.
+  # Diagnostic: which Console versions does this overlay actually support?
+  #
+  # The edits assert the structure they expect, so each edit is its own CI step. A
+  # step's red/green is visible without repository admin rights, which makes this
+  # answerable by someone who cannot read the logs - that is the whole point, since
+  # deciding support for an older release means reading a diff nobody has access to.
+  #
+  # continue-on-error: this is information-gathering, not a gate. The suite keeps its
+  # own Console 51 floor and skips there.
   probe-generator:
-    name: generator probe (${{ matrix.label }})
+    name: probe (${{ matrix.label }})
     runs-on: ${{ matrix.os }}
     container: ${{ matrix.container }}
     continue-on-error: true
@@ -95,23 +100,34 @@ jobs:
         include:
           - { label: ubuntu-24.04, os: ubuntu-24.04, container: null }
           - { label: debian-trixie, os: ubuntu-latest, container: "debian:latest" }
-          - { label: ubuntu-latest, os: ubuntu-latest, container: null }
     steps:
       - uses: actions/checkout@v4
+
       - name: Install Console
         run: |
           apt-get update -qq
-          apt-get install -y -qq --no-install-recommends \
-            gnome-console python3 binutils libgtk-4-1 libadwaita-1-0
-      - name: Report the Console version
-        run: kgx --version || echo "no kgx"
-      - name: Run the generator
+          apt-get install -y -qq --no-install-recommends gnome-console python3 || true
+          apt-get install -y -qq --no-install-recommends binutils libgtk-4-1 libadwaita-1-0 || true
+          command -v kgx || { echo "no kgx on this runner"; exit 0; }
+          kgx --version
+
+      - name: Extract the pristine templates
         run: |
           mkdir -p /tmp/probe/upstream /tmp/probe/overlay
           python3 tools/kgx-patch.py --upstream-dir /tmp/probe/upstream \
             --overlay-dir /tmp/probe/overlay dump --out-dir /tmp/probe/upstream
-          python3 tools/kgx-patch.py --upstream-dir /tmp/probe/upstream \
-            --overlay-dir /tmp/probe/overlay build
+
+      - name: edit 1 - decorated
+        run: python3 tools/kgx-patch.py --upstream-dir /tmp/probe/upstream probe --edit 1
+
+      - name: edit 2 - title buttons
+        run: python3 tools/kgx-patch.py --upstream-dir /tmp/probe/upstream probe --edit 2
+
+      - name: edit 3 - compact strip
+        run: python3 tools/kgx-patch.py --upstream-dir /tmp/probe/upstream probe --edit 3
+
+      - name: edit 4 - narrow breakpoint
+        run: python3 tools/kgx-patch.py --upstream-dir /tmp/probe/upstream probe --edit 4
 
   pkg-arch:
     name: package (arch)
