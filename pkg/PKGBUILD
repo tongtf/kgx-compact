@@ -1,0 +1,57 @@
+# Maintainer: tongtf
+pkgname=kgx-compact
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="Borderless GNOME Console (kgx) with a compact tab strip, via a GResource overlay"
+arch=('any')
+url="https://github.com/tongtf/kgx-compact"
+license=('MIT')
+depends=('gnome-console' 'python3' 'gtk4' 'libadwaita')
+optdepends=(
+  "gnome-shell: set the default terminal from GNOME Settings"
+)
+makedepends=()
+source=()
+
+# This package ships no compiled code and installs only into the invoking user's home,
+# because the whole mechanism is G_RESOURCE_OVERLAYS plus a GTK4 user stylesheet - both
+# of which are per-user by design. A system package could not do this correctly.
+#
+# Because there is nothing to build, skip the normal build phases and install in postinst.
+
+build() {
+    cd "$srcdir/$pkgname-$pkgver"
+    python3 -m compileall -q tools >/dev/null 2>&1 || true
+    bash -n install.sh
+}
+
+check() {
+    cd "$srcdir/$pkgname-$pkgver"
+    # tests/run.sh skips the parts it cannot do (no kgx binary, no display) rather than
+    # failing, so this is safe inside a build chroot that has neither.
+    ./tests/run.sh
+}
+
+package() {
+    cd "$srcdir/$pkgname-$pkgver"
+    install -Dm755 install.sh            "$pkgdir/usr/bin/kgx-compact-install"
+    install -Dm644 README.md             "$pkgdir/usr/share/doc/$pkgname/README.md"
+    install -Dm644 overlay/compact-tab-bar.ui.xml \
+                                      "$pkgdir/usr/share/$pkgname/compact-tab-bar.ui.xml"
+    install -Dm644 src/gtk.css          "$pkgdir/usr/share/$pkgname/gtk.css"
+    install -Dm644 src/kgx-compact      "$pkgdir/usr/share/$pkgname/kgx-compact"
+    install -Dm644 LICENSE              "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+    install -Dm644 CONTRIBUTING.md      "$pkgdir/usr/share/doc/$pkgname/CONTRIBUTING.md"
+    install -Dm644 SECURITY.md          "$pkgdir/usr/share/doc/$pkgname/SECURITY.md"
+    install -Dm644 docs/CSS.md          "$pkgdir/usr/share/doc/$pkgname/CSS.md"
+    install -Dm644 docs/UPGRADING.md    "$pkgdir/usr/share/doc/$pkgname/UPGRADING.md"
+    local d
+    for d in tools/*.py; do
+        install -Dm755 "$d" "$pkgdir/usr/share/$pkgname/$d"
+    done
+}
+
+# Deliberately do NOT enable the package. The overlay is per-user and version-pinned to
+# the Console the user actually has, so enabling it globally would be wrong. The user
+# runs `kgx-compact-install` for their own account and then follows the printed
+# gsettings command.

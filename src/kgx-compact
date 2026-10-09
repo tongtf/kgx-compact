@@ -1,0 +1,98 @@
+#!/bin/sh
+# kgx-compact - start GNOME Console with the "compact" UI: no window decorations
+# (so no title bar above the terminal) and a single slim tab strip instead of the
+# stock AdwHeaderBar.
+#
+# How it works: G_RESOURCE_OVERLAYS points GIO at ~/.local/share/kgx-overlay, which
+# replaces the binary's built-in /org/gnome/Console/kgx-window.ui with our patched
+# GtkBuilder XML. Everything else in the binary keeps working as usual.
+#
+# The overlay is tied to the Console version it was written for (the .supported-major
+# stamp next to it), so after an upgrade nothing is applied silently - you get the
+# stock title bar plus a warning, and have to port the overlay once (see README.md).
+set -eu
+
+KGX_BIN="${KGX_BIN:-/usr/bin/kgx}"
+
+# No HOME fallback: guessing a home directory would be worse than failing. The paths
+# below are only meaningful for the user who installed this.
+: "${HOME:?kgx-compact: HOME is not set; cannot locate the overlay directory}"
+OVERLAY_DIR="$HOME/.local/share/kgx-overlay"
+OVERLAY_KEY="/org/gnome/Console=$OVERLAY_DIR"
+OVERLAY_FILE="$OVERLAY_DIR/kgx-window.ui"
+STAMP_FILE="$OVERLAY_DIR/.supported-major"
+
+version_output=$($KGX_BIN --version 2>&1 || true)
+major=$(printf '%s\n' "$version_output" | sed -n 's/^# KGX \([0-9][0-9]*\).*/\1/p' | head -n 1)
+
+overlay_major=''
+[ -f "$STAMP_FILE" ] && overlay_major=$(tr -d ' \t\n\r' < "$STAMP_FILE")
+
+resource_ok=0
+if command -v strings >/dev/null 2>&1; then
+    if strings "$KGX_BIN" 2>/dev/null | grep -Fq '/org/gnome/Console/kgx-window.ui'; then
+        resource_ok=1
+    fi
+else
+    # If strings is unavailable, rely on the version stamp check.
+    resource_ok=1
+fi
+
+strip_console_overlay() {
+    [ -n "${G_RESOURCE_OVERLAYS:-}" ] || {
+        unset G_RESOURCE_OVERLAYS
+        return
+    }
+
+    saved_ifs=$IFS
+    IFS=:
+    result=
+    for entry in $G_RESOURCE_OVERLAYS; do
+        [ -n "$entry" ] || continue
+        case "$entry" in
+            /org/gnome/Console=*)
+                continue
+                ;;
+        esac
+        if [ -n "$result" ]; then
+            result="$result:$entry"
+        else
+            result="$entry"
+        fi
+    done
+    IFS=$saved_ifs
+
+    if [ -n "$result" ]; then
+        export G_RESOURCE_OVERLAYS="$result"
+    else
+        unset G_RESOURCE_OVERLAYS
+    fi
+}
+
+skip_reason=''
+if [ ! -f "$OVERLAY_FILE" ]; then
+    skip_reason="no overlay file at $OVERLAY_FILE"
+elif [ -z "$overlay_major" ]; then
+    skip_reason="overlay has no .supported-major stamp"
+elif [ -z "$major" ]; then
+    skip_reason="could not detect the Console version"
+elif [ "$overlay_major" != "$major" ]; then
+    skip_reason="overlay is built for Console $overlay_major, installed is ${major:-unknown}"
+elif [ "$resource_ok" -ne 1 ]; then
+    skip_reason="$KGX_BIN has no /org/gnome/Console/kgx-window.ui resource"
+fi
+
+if [ -z "$skip_reason" ]; then
+    strip_console_overlay
+    if [ -n "${G_RESOURCE_OVERLAYS:-}" ]; then
+        export G_RESOURCE_OVERLAYS="$OVERLAY_KEY:$G_RESOURCE_OVERLAYS"
+    else
+        export G_RESOURCE_OVERLAYS="$OVERLAY_KEY"
+    fi
+else
+    strip_console_overlay
+    printf 'kgx-compact: overlay NOT applied (%s); starting stock Console (title bar visible)\n' \
+        "$skip_reason" >&2
+fi
+
+exec "$KGX_BIN" "$@"

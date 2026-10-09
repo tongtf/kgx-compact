@@ -1,0 +1,39 @@
+/* GNOME Console (kgx) — compact tab strip.
+ *
+ * The title bar is removed structurally by ~/.local/share/kgx-overlay/kgx-window.ui
+ * (see ~/.local/share/kgx-compact/README.md). That overlay replaces the AdwHeaderBar
+ * with a GtkBox carrying the style class `compact-tab-bar`, so what is left is a bare
+ * strip floating above the terminal. Out of the box AdwTabBar still paints it like a
+ * header bar (its own background plus a 1px bottom border), which reads as "a title
+ * bar that refuses to die". The rules below make the strip blend into the terminal.
+ *
+ * This is the global GTK4 user stylesheet, shared by every GTK4 app, so every rule is
+ * scoped to .terminal-window (set by Console) or .compact-tab-bar (set by our overlay).
+ *
+ * Colours are left to Adwaita on purpose: the terminal background is a VTE palette
+ * colour that changes with the Console theme, and CSS cannot read it back. To match a
+ * specific palette colour instead, replace `background: none` with e.g.
+ * `background: #1e1e1e;`.
+
+window.terminal-window .compact-tab-bar {
+  background: none;
+  box-shadow: none;
+  min-height: 0;
+  padding: 1px 2px;
+}
+
+/* AdwTabBar's internal box: drop the header-bar background and its bottom hairline.
+ * Note the descendant combinator: AdwTabBar wraps this box in a GtkRevealer, so the
+ * box is a grandchild, not a child, and `tabbar > .box` would never match. */
+window.terminal-window .compact-tab-bar tabbar .box {
+  background: none;
+  box-shadow: none;
+  padding: 0;
+}
+
+/* Keep the tab row itself compact now that the surrounding chrome is gone. */
+window.terminal-window .compact-tab-bar tabbar tabbox {
+  min-height: 0;
+  padding-top: 2px;
+  padding-bottom: 2px;
+}

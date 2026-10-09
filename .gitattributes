@@ -1,0 +1,7 @@
+# Keep generated and local-only paths out of release tarballs.
+# `upstream/` is re-extracted from the installed Console by `kgx-patch.py dump`,
+# so it is never something to commit.
+__pycache__/ export-ignore
+*.pyc         export-ignore
+upstream/     export-ignore
+*.tar.gz      export-ignore

@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/tongtf/kgx-compact/security/advisories/new
+    about: Please report privately rather than in a public issue.
+  - name: Upstream Console issues
+    url: https://gitlab.gnome.org/GNOME/gnome-console/-/issues
+    about: >
+      Bugs in Console itself belong upstream. If the title bar is back because of an
+      upgrade, you still need to port the overlay here, but a genuine Console bug is
+      best filed there.

@@ -1,0 +1,42 @@
+name: Console port
+description: Porting the overlay to a new GNOME Console release
+labels: [help wanted]
+body:
+  - type: textarea
+    id: situation
+    attributes:
+      label: What happens when you run `tools/kgx-patch.py build`?
+      description: Paste the full output, including the refusal message.
+      render: shell
+    validations:
+      required: true
+
+  - type: input
+    id: versions
+    attributes:
+      label: Installed and dumped versions
+      description: The value in `upstream/VERSION` and the output of `kgx --version`.
+      placeholder: "dumped 51, installed 52"
+    validations:
+      required: true
+
+  - type: textarea
+    id: diff
+    attributes:
+      label: Relevant part of the template diff
+      description: >
+        The output of
+        `diff <(pretty-printed old upstream/kgx-window.ui) <(pretty-printed new one)`.
+        If the change is large, just the region around the element the refusal names.
+      render: diff
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: What you worked out
+      description: >
+        Optional. If you already ported it, say which edit stopped applying and why —
+        that is exactly the information that makes the next release fast.
+      render: text

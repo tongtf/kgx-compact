@@ -1,0 +1,58 @@
+name: Bug report
+description: Something does not work, or the title bar came back
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: >
+        What you saw, and what you expected instead. If the title bar reappeared after an
+        upgrade, paste the line kgx-compact printed on stderr when it started.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: symptom
+    attributes:
+      label: Closest symptom
+      options:
+        - The title bar is back
+        - The compact strip looks wrong (leftover hairline, spacing, colour)
+        - Console will not start, or crashes
+        - `kgx-patch.py build` refused
+        - `kgx-verify.py` reports a failure
+        - The installer did something unexpected
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: versions
+    attributes:
+      label: Output of
+      description: Both commands, please. Paste the whole block.
+      render: shell
+    value: |
+      kgx --version
+      tools/kgx-verify.py all
+    validations:
+      required: true
+
+  - type: textarea
+    id: css
+    attributes:
+      label: Your gtk.css changes
+      description: >
+        Only if you changed the stylesheet. If you did not, say so.
+      render: text
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I have not modified the generated overlay by hand
+          required: false
+        - label: I have read docs/UPGRADING.md
+          required: false

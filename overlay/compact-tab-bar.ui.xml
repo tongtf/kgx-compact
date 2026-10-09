@@ -1,0 +1,138 @@
+<!--
+  The compact tab strip that replaces AdwHeaderBar + AdwTabBar.
+
+  FRAGMENT, not a standalone builder file: tools/kgx-patch.py splices the <object>
+  below into the <child type="top"> slot of KgxFullscreenBox inside the pristine
+  upstream kgx-window.ui. Keep exactly one top-level <object> so the splice stays
+  unambiguous, and do not wrap it in <interface>.
+
+  Ids required from the rest of kgx-window.ui (upstream owns the references):
+    tab_bar           - AdwTabOverview `inverted` binding
+    tab_button        - AdwBreakpoint setter (narrow layout)
+    new_tab_button    - AdwBreakpoint setter (narrow layout)
+    primary_menu_popover - KgxFullscreenBox `autohide` binding
+    theme_switcher    - referenced by the primary menu popover
+
+  close_window_button is ours: with no header bar there is no other Close Tab control.
+  The zoom-in icon-name is upstream's, added in 51.
+-->
+<object class="GtkBox" id="compact_tab_bar">
+  <property name="orientation">horizontal</property>
+  <property name="spacing">6</property>
+  <property name="hexpand">True</property>
+  <property name="valign">center</property>
+  <child>
+    <object class="AdwTabBar" id="tab_bar">
+      <property name="view" bind-source="pages" bind-property="tab-view" bind-flags="sync-create"/>
+      <property name="hexpand">True</property>
+      <property name="valign">center</property>
+      <binding name="inverted">
+        <closure type="gboolean" function="kgx_decoration_layout_is_inverted">
+          <lookup name="gtk-decoration-layout">
+            <closure type="GtkSettings" function="kgx_gtk_settings_for_display">
+              <lookup name="display">KgxWindow</lookup>
+            </closure>
+          </lookup>
+        </closure>
+      </binding>
+      <signal name="extra-drag-drop" handler="extra_drag_drop" swapped="no"/>
+    </object>
+  </child>
+  <child>
+    <object class="AdwTabButton" id="tab_button">
+      <property name="visible">False</property>
+      <property name="action-name">win.show-tabs</property>
+      <property name="view" bind-source="pages" bind-property="tab-view" bind-flags="sync-create"/>
+      <property name="tooltip-text" translatable="yes">Show All Tabs</property>
+    </object>
+  </child>
+  <child>
+    <object class="GtkButton" id="new_tab_button">
+      <property name="focus-on-click">False</property>
+      <property name="action-name">win.new-tab</property>
+      <property name="tooltip-text" translatable="yes">New Tab</property>
+      <property name="icon-name">tab-new-symbolic</property>
+    </object>
+  </child>
+  <child>
+    <object class="GtkMenuButton">
+      <property name="focus-on-click">False</property>
+      <property name="tooltip-text" translatable="yes">Main Menu</property>
+      <property name="icon-name">open-menu-symbolic</property>
+      <property name="popover">
+        <object class="GtkPopoverMenu" id="primary_menu_popover">
+          <property name="menu-model">primary_menu</property>
+          <child type="theme-switcher">
+            <object class="KgxThemeSwitcher" id="theme_switcher"/>
+          </child>
+          <child type="zoom-controls">
+            <object class="GtkBox">
+              <property name="orientation">horizontal</property>
+              <property name="homogeneous">True</property>
+              <property name="margin-top">3</property>
+              <property name="margin-bottom">3</property>
+              <child>
+                <object class="GtkButton">
+                  <property name="action-name">app.zoom-out</property>
+                  <property name="icon-name">zoom-out-symbolic</property>
+                  <property name="tooltip-text" translatable="yes">Shrink Text</property>
+                  <property name="halign">center</property>
+                  <style>
+                    <class name="circular"/>
+                    <class name="flat"/>
+                  </style>
+                </object>
+              </child>
+              <child>
+                <object class="GtkButton">
+                  <property name="action-name">app.zoom-normal</property>
+                  <property name="tooltip-text" translatable="yes">Reset Size</property>
+                  <property name="halign">center</property>
+                  <style>
+                    <class name="flat"/>
+                    <class name="numeric"/>
+                  </style>
+                  <child>
+                    <object class="GtkLabel">
+                      <binding name="label">
+                        <closure type="gchararray" function="kgx_format_percentage">
+                          <lookup name="font-scale">
+                            <lookup name="settings">KgxWindow</lookup>
+                          </lookup>
+                        </closure>
+                      </binding>
+                      <property name="width_chars">5</property>
+                    </object>
+                  </child>
+                </object>
+              </child>
+              <child>
+                <object class="GtkButton">
+                  <property name="action-name">app.zoom-in</property>
+                  <property name="icon-name">zoom-in-symbolic</property>
+                  <property name="tooltip-text" translatable="yes">Enlarge Text</property>
+                  <property name="halign">center</property>
+                  <style>
+                    <class name="circular"/>
+                    <class name="flat"/>
+                  </style>
+                </object>
+              </child>
+            </object>
+          </child>
+        </object>
+      </property>
+    </object>
+  </child>
+  <child>
+    <object class="GtkButton" id="close_window_button">
+      <property name="focus-on-click">False</property>
+      <property name="action-name">win.close-tab</property>
+      <property name="tooltip-text" translatable="yes">Close Tab</property>
+      <property name="icon-name">window-close-symbolic</property>
+    </object>
+  </child>
+  <style>
+    <class name="compact-tab-bar"/>
+  </style>
+</object>

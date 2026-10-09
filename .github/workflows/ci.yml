@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    name: shell scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Lint
+        run: |
+          shellcheck --shell=sh --external-sources \
+            install.sh src/kgx-compact tests/run.sh pkg/build-release.sh
+
+  tests:
+    name: tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The overlay and the wrapper are pure POSIX sh and must behave on any
+        # distribution; the generator and checkers additionally need python3.
+        include:
+          - name: full (has gnome-console + display)
+            container: archlinux:latest
+            install: true
+            display: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Console and a virtual display
+        if: matrix.install
+        run: |
+          sudo pacman -Sy --noconfirm --needed \
+            gnome-console gtk4 libadwaita python-gobject \
+            xvfb python
+          echo "DISPLAY=:99" >> "$GITHUB_ENV"
+
+      - name: Start Xvfb
+        if: matrix.display
+        run: |
+          Xvfb :99 -screen 0 1280x1024x24 &
+          sleep 2
+
+      - name: Suite (skip what this environment cannot do)
+        env:
+          DISPLAY: ${{ matrix.display && ':99' || '' }}
+        run: ./tests/run.sh
+
+  pkgbuild:
+    name: PKGBUILD builds
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install packaging tools
+        run: |
+          pacman -Sy --noconfirm --needed base-devel git
+          useradd -m builder
+          chown -R builder /__w/${{ github.repository }}
+          printf '[builder]\nALL=(ALL) NOPASSWD: ALL\n' \
+            | sudo tee /etc/sudoers.d/builder
+      - name: Make a release tarball from HEAD
+        run: |
+          mkdir -p /tmp/pkg && cd /tmp/pkg
+          git -C "$GITHUB_WORKSPACE" archive \
+            --format=tar.gz --prefix=kgx-compact-1.0.0/ \
+            -o kgx-compact-1.0.0.tar.gz HEAD
+          cp "$GITHUB_WORKSPACE/pkg/PKGBUILD" .
+      - name: makepkg
+        run: sudo -u builder makepkg -f --noconfirm --skippgpcheck --nodeps
+      - name: Show what the package would install
+        run: tar -tzf /tmp/pkg/*.pkg.tar.zst | sort

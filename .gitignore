@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.pyo
+src/*.bak
+upstream/
+*.tar.gz
+*.log
