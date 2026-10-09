@@ -1,0 +1,12 @@
+#!/usr/bin/make -f
+# kgx-compact is scripts and data only: nothing to compile, so no build system and
+# dh will do. The per-user installer is deliberately NOT run at package install time -
+# see debian/control and README.md.
+
+%:
+	dh $@
+
+override_dh_auto_test:
+	# The suite needs a Console binary to extract templates from; there is none at
+	# build time, and tests/run.sh already skips what it cannot do.
+	./tests/run.sh

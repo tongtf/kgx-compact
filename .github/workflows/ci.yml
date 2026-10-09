@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   shellcheck:
-    name: shell scripts
+    name: shellcheck
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,68 +23,128 @@ jobs:
           shellcheck --shell=sh --external-sources \
             install.sh src/kgx-compact tests/run.sh pkg/build-release.sh
 
-  tests:
-    name: tests
+  # The suite runs against the installed Console, so it has to run where Console is
+  # packaged. Package names differ per family, hence three explicit jobs rather than a
+  # matrix with conditionals.
+  tests-arch:
+    name: tests (arch)
     runs-on: ubuntu-latest
-    # archlinux so the suite runs against the same distribution the overlay targets.
-    # Note: the container's default user is root and sudo is NOT installed.
     container: archlinux:latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Console, GTK4 and a virtual display
+      - name: Install dependencies
         run: |
-          # -Syu for a complete upgrade: a partial -Sy leaves the package set
-          # inconsistent. --overwrite because the base image ships files that newer
-          # packages also own, which otherwise aborts the transaction.
+          # The container runs as root and has no sudo. -Syu for a complete upgrade;
+          # --overwrite because the base image ships files newer packages also own.
+          # The Xvfb server is xorg-server-xvfb on Arch; there is no `xvfb` package.
           pacman -Syu --noconfirm --needed --overwrite '*' \
-            gnome-console gtk4 libadwaita python-gobject python xvfb
-
+            gnome-console gtk4 libadwaita python-gobject python xorg-server-xvfb binutils
       - name: Start Xvfb
         run: Xvfb :99 -screen 0 1280x1024x24 &
-
       - name: Run the suite
         env:
           DISPLAY: ":99"
           GDK_BACKEND: x11
         run: ./tests/run.sh
 
-  pkgbuild:
-    name: PKGBUILD builds
+  tests-ubuntu:
+    name: tests (ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends \
+            gnome-console xvfb binutils \
+            python3 python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 \
+            libgtk-4-1 libadwaita-1-0
+      - name: Run the suite
+        env:
+          DISPLAY: ":99"
+          GDK_BACKEND: x11
+        run: |
+          # GitHub's ubuntu images have no X server running; start one for the
+          # widget-level CSS checks.
+          Xvfb :99 -screen 0 1280x1024x24 &
+          sleep 2
+          ./tests/run.sh
+
+  tests-debian:
+    name: tests (debian)
+    runs-on: ubuntu-latest
+    container: debian:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends \
+            gnome-console xvfb binutils \
+            python3 python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 \
+            libgtk-4-1 libadwaita-1-0 ca-certificates
+      - name: Run the suite
+        env:
+          DISPLAY: ":99"
+          GDK_BACKEND: x11
+        run: |
+          Xvfb :99 -screen 0 1280x1024x24 &
+          sleep 2
+          ./tests/run.sh
+
+  pkg-arch:
+    name: package (arch)
     runs-on: ubuntu-latest
     container: archlinux:latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Install packaging tools
         run: pacman -Syu --noconfirm --needed --overwrite '*' base-devel git
-
       - name: Create an unprivileged builder
-        # makepkg refuses to run as root, and this container has no sudo, so the
-        # only way to drop privileges is su.
+        # makepkg refuses to run as root, and this container has no sudo.
         run: |
           useradd -m -s /bin/bash builder
           install -d -o builder -g builder /tmp/pkg
-
-      - name: Build a release tarball from HEAD
+      - name: Build the release tarball
         run: |
-          # checkout's .git is owned by root, which git refuses to use as-is.
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          cd /tmp/pkg
-          version=$(sed -n 's/^pkgver=//p' "$GITHUB_WORKSPACE/pkg/PKGBUILD" | head -n1)
-          git -C "$GITHUB_WORKSPACE" archive --format=tar.gz \
-            --prefix="kgx-compact-$version/" -o "kgx-compact-$version.tar.gz" HEAD
-          cp "$GITHUB_WORKSPACE/pkg/PKGBUILD" .
+          # Relative paths on purpose: a container job's default working directory is
+          # the checkout, and $GITHUB_WORKSPACE is not a git repository from inside it.
+          set -eux
+          git rev-parse --show-toplevel
+          version=$(sed -n 's/^pkgver=//p' pkg/PKGBUILD | head -n1)
+          git archive --format=tar.gz --prefix="kgx-compact-$version/" \
+            -o "/tmp/pkg/kgx-compact-$version.tar.gz" HEAD
+          cp pkg/PKGBUILD /tmp/pkg/
           chown -R builder:builder /tmp/pkg
-
       - name: makepkg
         run: su builder -c 'cd /tmp/pkg && makepkg -f --noconfirm --skippgpcheck --nodeps'
-
       - name: Show what the package installs
         run: |
-          echo "--- package contents ---"
-          tar --zstd -tvf /tmp/pkg/kgx-compact-*.pkg.tar.zst | awk '{print $NF}' | sort
-          echo
-          echo "--- enabling? ---"
-          echo "expect none: this package installs per-user files and enables nothing"
-          rpm -qp --scripts /tmp/pkg/kgx-compact-*.pkg.tar.zst 2>/dev/null | tail -5 || echo "(no scriptlets)"
+          set -x
+          tar --zstd -tf /tmp/pkg/kgx-compact-*.pkg.tar.zst | sort
+
+  pkg-debian:
+    name: package (debian)
+    runs-on: ubuntu-latest
+    container: debian:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install packaging tools
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends \
+            debhelper build-essential fakeroot ca-certificates
+      - name: Build the package
+        run: |
+          set -eux
+          dpkg-buildpackage -b -us -uc
+      - name: Show what the package installs
+        run: |
+          set -x
+          dpkg-deb -c ../kgx-compact_*.deb | awk '{print $NF}' | grep -v '/$' | sort
+      - name: Lint
+        run: |
+          apt-get install -y -qq --no-install-recommends lintian
+          # Not fatal: lintian has opinions (e.g. about the copyright file format)
+          # that are not defects here. Print the output for a human to judge.
+          lintian --no-tag-display-limit ../kgx-compact_*.deb || true

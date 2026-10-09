@@ -1,6 +1,10 @@
 # Keep generated and local-only paths out of release tarballs.
 # `upstream/` is re-extracted from the installed Console by `kgx-patch.py dump`,
 # so it is never something to commit.
+#
+# Note: pkg/ and debian/ are deliberately NOT export-ignored. `pkg/build-release.sh`
+# builds one tarball with `git archive` and both packaging systems build from it, so
+# the tarball has to carry both recipes to stay self-contained.
 __pycache__/ export-ignore
 *.pyc         export-ignore
 upstream/     export-ignore

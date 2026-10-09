@@ -202,7 +202,10 @@ HOME="$SANDBOX/home" "$SRC/install.sh" >/dev/null 2>&1
 assert "reinstall is idempotent" cmp -s "$CSS" "$SANDBOX/css1"
 
 # Editing inside the managed block must be undone by a refresh.
-sed -i 's/min-height: 0;/min-height: 999px;/' "$CSS" 2>/dev/null || true
+# Written via a temp file rather than `sed -i`, which is not portable (BSD sed and
+# GNU sed disagree on the argument-less form).
+sed 's/min-height: 0;/min-height: 999px;/' "$CSS" > "$SANDBOX/css.tampered"
+mv "$SANDBOX/css.tampered" "$CSS"
 HOME="$SANDBOX/home" "$SRC/install.sh" >/dev/null 2>&1
 refute "refresh replaces the managed block" grep -qF "min-height: 999px;" "$CSS"
 
@@ -215,6 +218,26 @@ HOME="$SANDBOX/home" "$SRC/install.sh" --uninstall >/dev/null 2>&1
 assert "uninstall removes the wrapper" test ! -f "$SANDBOX/home/.local/bin/kgx-compact"
 assert "uninstall keeps the user's CSS" grep -qF 'window.mine' "$CSS"
 refute "uninstall strips the managed block" grep -qF "kgx-compact (managed block" "$CSS"
+echo
+
+# --------------------------------------------------------- packaging consistency
+echo "packaging"
+pkgver=$(sed -n 's/^pkgver=//p' "$SRC/pkg/PKGBUILD" | head -n 1)
+debver=$(sed -n '1s/^[^(]*(\([^)]*\)).*/\1/p' "$SRC/debian/changelog")
+assert "PKGBUILD and debian/changelog agree on the version" \
+    test -n "$pkgver" -a "$pkgver" = "$debver"
+assert "debian source format is native" \
+    grep -qx '3.0 (native)' "$SRC/debian/source/format"
+# Both packaging recipes must install the same launcher under the same name.
+assert "PKGBUILD installs the launcher as kgx-compact-install" \
+    grep -q 'usr/bin/kgx-compact-install' "$SRC/pkg/PKGBUILD"
+assert "debian installs the launcher as kgx-compact-install" \
+    grep -q 'usr/bin/kgx-compact-install' "$SRC/debian/kgx-compact.install"
+# Every tool the README tells users to run must be packaged on both.
+for t in kgx-patch.py kgx-verify.py check-overlay.py check-css.py verify-css-match.py; do
+    assert "PKGBUILD ships $t" grep -q "tools/$t" "$SRC/pkg/PKGBUILD"
+    assert "debian ships $t" grep -q "tools/$t" "$SRC/debian/kgx-compact.install"
+done
 echo
 
 # ---------------------------------------------------------------------- overlay ui

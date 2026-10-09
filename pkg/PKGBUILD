@@ -35,19 +35,17 @@ check() {
 package() {
     cd "$srcdir/$pkgname-$pkgver"
     install -Dm755 install.sh            "$pkgdir/usr/bin/kgx-compact-install"
-    install -Dm644 README.md             "$pkgdir/usr/share/doc/$pkgname/README.md"
-    install -Dm644 overlay/compact-tab-bar.ui.xml \
-                                      "$pkgdir/usr/share/$pkgname/compact-tab-bar.ui.xml"
-    install -Dm644 src/gtk.css          "$pkgdir/usr/share/$pkgname/gtk.css"
-    install -Dm644 src/kgx-compact      "$pkgdir/usr/share/$pkgname/kgx-compact"
-    install -Dm644 LICENSE              "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
-    install -Dm644 CONTRIBUTING.md      "$pkgdir/usr/share/doc/$pkgname/CONTRIBUTING.md"
-    install -Dm644 SECURITY.md          "$pkgdir/usr/share/doc/$pkgname/SECURITY.md"
-    install -Dm644 docs/CSS.md          "$pkgdir/usr/share/doc/$pkgname/CSS.md"
-    install -Dm644 docs/UPGRADING.md    "$pkgdir/usr/share/doc/$pkgname/UPGRADING.md"
-    local d
-    for d in tools/*.py; do
-        install -Dm755 "$d" "$pkgdir/usr/share/$pkgname/$d"
+    install -Dm644 LICENSE               "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+    # Listed explicitly rather than globbed, so this recipe and
+    # debian/kgx-compact.install can be diffed against each other. tests/run.sh fails
+    # the build if the two ever install a different set of tools.
+    for doc in README.md CONTRIBUTING.md SECURITY.md docs/CSS.md docs/UPGRADING.md; do
+        install -Dm644 "$doc"            "$pkgdir/usr/share/doc/$pkgname/${doc##*/}"
+    done
+    for f in src/kgx-compact src/gtk.css overlay/compact-tab-bar.ui.xml \
+             tools/kgx-patch.py tools/kgx-verify.py tools/check-overlay.py \
+             tools/check-css.py tools/verify-css-match.py; do
+        install -Dm755 "$f"              "$pkgdir/usr/share/$pkgname/${f##*/}"
     done
 }
 

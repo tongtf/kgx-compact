@@ -120,31 +120,56 @@ failure they exist to catch is silent: a selector that matches nothing parses pe
 and does nothing. `verify-css-match.py` builds the real widget tree and resolves each
 selector against it, and `tests/run.sh` asserts it rejects a typo'd node name.
 
-## Arch packaging
+## Packaging
+
+Tested in CI on Arch, Ubuntu and Debian. The package installs the files and nothing
+else — it does **not** touch any user account and enables nothing. Run the per-user
+installer yourself afterwards, then follow the `gsettings` command it prints.
+
+This is deliberate on both families: `G_RESOURCE_OVERLAYS` and the GTK4 user stylesheet
+are per-user, and the generated overlay is pinned to the Console version installed on
+that machine, so a global enable would be wrong.
+
+Neither package is in a public repository; that needs someone who maintains one.
+
+### Arch
 
 ```sh
-git clone https://github.com/tongtf/kgx-compact.git
-cd kgx-compact
-pkg/build-release.sh                    # tarball + PKGBUILD -> /tmp/kgx-compact-release
+pkg/build-release.sh          # -> /tmp/kgx-compact-release/{tarball,PKGBUILD}
 cd /tmp/kgx-compact-release && makepkg -si
-kgx-compact-install                     # per-user, run as yourself
+kgx-compact-install
 ```
 
-`build-release.sh` reads the version out of the PKGBUILD so the tarball name and `pkgver`
-cannot drift apart, which matters because makepkg resolves the source directory as
-`$srcdir/$pkgname-$pkgver`.
+### Debian / Ubuntu
 
-The package deliberately installs nothing and enables nothing on its own. The mechanism
-is per-user by nature — `G_RESOURCE_OVERLAYS` and the GTK4 user stylesheet are both
-per-user — and the overlay is pinned to the Console the user actually has, so enabling it
-globally would be wrong.
+```sh
+pkg/build-release.sh          # autodetects; pass "debian" to force it
+cd /tmp/kgx-compact-release/kgx-compact-1.0.0 && dpkg-buildpackage -b -us -uc
+sudo dpkg -i ../kgx-compact_1.0.0*.deb
+kgx-compact-install
+```
 
-It is not in the AUR; that would need someone who maintains one.
+`build-release.sh` reads the version from `pkg/PKGBUILD` and cross-checks it against
+`debian/changelog`, refusing to build if they disagree. `tests/run.sh` also asserts that
+both recipes install the same set of tools, so adding a tool to one and forgetting the
+other fails the build rather than shipping a half-installed package.
 
 ## Requirements
 
-GNOME Console 51+, GNOME, GTK4, libadwaita, and Python 3 with PyGObject for the
-checkers. The overlay and the launcher themselves need only a POSIX shell.
+GNOME Console 51+, GNOME, GTK4, libadwaita, `binutils` (for `strings`), and Python 3
+with PyGObject for the checkers. The overlay and the launcher themselves need only a
+POSIX shell and coreutils.
+
+| | Arch | Debian / Ubuntu |
+| --- | --- | --- |
+| terminal | `gnome-console` | `gnome-console` |
+| toolkit | `gtk4` `libadwaita` | `libgtk-4-1` `libadwaita-1-0` |
+| introspection | `python-gobject` | `python3-gi` `gir1.2-gtk-4.0` `gir1.2-adw-1` |
+| strings | `binutils` | `binutils` |
+| headless display | `xorg-server-xvfb` | `xvfb` |
+
+The launcher degrades gracefully if `strings` is missing, and the checkers need PyGObject
+only to run — the overlay itself does not.
 
 ## Why not a GNOME Shell extension?
 

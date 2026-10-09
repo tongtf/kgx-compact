@@ -1,0 +1,9 @@
+install.sh                usr/bin/kgx-compact-install
+src/kgx-compact           usr/share/kgx-compact/kgx-compact
+src/gtk.css               usr/share/kgx-compact/gtk.css
+overlay/compact-tab-bar.ui.xml usr/share/kgx-compact/compact-tab-bar.ui.xml
+tools/kgx-patch.py        usr/share/kgx-compact/kgx-patch.py
+tools/kgx-verify.py       usr/share/kgx-compact/kgx-verify.py
+tools/check-overlay.py    usr/share/kgx-compact/check-overlay.py
+tools/check-css.py        usr/share/kgx-compact/check-css.py
+tools/verify-css-match.py usr/share/kgx-compact/verify-css-match.py

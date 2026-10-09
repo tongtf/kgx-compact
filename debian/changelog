@@ -1,0 +1,14 @@
+kgx-compact (1.0.0) unstable; urgency=medium
+
+  * Initial release.
+    - Removes the GNOME Console title bar and replaces the header bar with a
+      compact tab strip, via a G_RESOURCE_OVERLAYS replacement of
+      /org/gnome/Console/kgx-window.ui.
+    - The overlay is generated from the pristine upstream template by
+      tools/kgx-patch.py, and every edit asserts the structure it expects, so a
+      Console release that moves things causes a loud refusal rather than a
+      silently wrong window.
+    - Verifies the overlay type-checks against GTK4/libadwaita and that the
+      stylesheet both parses and matches real widgets.
+
+ -- tongtf <tongtf@qq.com>  Fri, 09 Oct 2026 12:00:00 +0800

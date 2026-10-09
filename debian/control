@@ -1,0 +1,37 @@
+Source: kgx-compact
+Section: gnome
+Priority: optional
+Maintainer: tongtf <tongtf@qq.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Rules-Requires-Root: no
+
+Package: kgx-compact
+Architecture: all
+Depends:
+ ${misc:Depends},
+ gnome-console (>= 45),
+ binutils,
+Recommends:
+ python3-gi,
+ gir1.2-gtk-4.0,
+ gir1.2-adw-1,
+Description: borderless GNOME Console with a compact tab strip
+ Removes the GNOME Console (kgx) title bar and replaces its header bar with a slim
+ tab strip, without patching Console itself.
+ .
+ Console builds its window from a GtkBuilder template compiled into its binary as
+ /org/gnome/Console/kgx-window.ui. G_RESOURCE_OVERLAYS can replace that single
+ resource, so no patch to Console is required - the overlay is dropped in at launch.
+ .
+ The package installs the launcher, the checker tools and the stylesheet, but
+ installs nothing into any user account and enables nothing. Run
+ .
+   kgx-compact-install
+ .
+ as your own user, then follow the gsettings command it prints.
+ .
+ This is deliberate: G_RESOURCE_OVERLAYS and the GTK4 user stylesheet are both
+ per-user, and the generated overlay is pinned to the Console version installed on
+ that machine, so a global enable would be wrong.
+Homepage: https://github.com/tongtf/kgx-compact
