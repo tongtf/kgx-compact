@@ -20,8 +20,8 @@ body:
         - The title bar is back
         - The compact strip looks wrong (leftover hairline, spacing, colour)
         - Console will not start, or crashes
-        - `kgx-patch.py build` refused
-        - `kgx-verify.py` reports a failure
+        - "kgx-patch.py build refused"
+        - "kgx-verify.py reports a failure"
         - The installer did something unexpected
         - Something else
     validations:

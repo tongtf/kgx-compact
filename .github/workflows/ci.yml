@@ -16,8 +16,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install shellcheck
-        run: sudo apt-get update && sudo apt-get install -y shellcheck
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
       - name: Lint
+        # Only the POSIX shell scripts; everything under tools/ is Python.
         run: |
           shellcheck --shell=sh --external-sources \
             install.sh src/kgx-compact tests/run.sh pkg/build-release.sh
@@ -25,36 +26,27 @@ jobs:
   tests:
     name: tests
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        # The overlay and the wrapper are pure POSIX sh and must behave on any
-        # distribution; the generator and checkers additionally need python3.
-        include:
-          - name: full (has gnome-console + display)
-            container: archlinux:latest
-            install: true
-            display: true
+    # archlinux so the suite runs against the same distribution the overlay targets.
+    # Note: the container's default user is root and sudo is NOT installed.
+    container: archlinux:latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Console and a virtual display
-        if: matrix.install
+      - name: Install Console, GTK4 and a virtual display
         run: |
-          sudo pacman -Sy --noconfirm --needed \
-            gnome-console gtk4 libadwaita python-gobject \
-            xvfb python
-          echo "DISPLAY=:99" >> "$GITHUB_ENV"
+          # -Syu for a complete upgrade: a partial -Sy leaves the package set
+          # inconsistent. --overwrite because the base image ships files that newer
+          # packages also own, which otherwise aborts the transaction.
+          pacman -Syu --noconfirm --needed --overwrite '*' \
+            gnome-console gtk4 libadwaita python-gobject python xvfb
 
       - name: Start Xvfb
-        if: matrix.display
-        run: |
-          Xvfb :99 -screen 0 1280x1024x24 &
-          sleep 2
+        run: Xvfb :99 -screen 0 1280x1024x24 &
 
-      - name: Suite (skip what this environment cannot do)
+      - name: Run the suite
         env:
-          DISPLAY: ${{ matrix.display && ':99' || '' }}
+          DISPLAY: ":99"
+          GDK_BACKEND: x11
         run: ./tests/run.sh
 
   pkgbuild:
@@ -63,21 +55,36 @@ jobs:
     container: archlinux:latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Install packaging tools
+        run: pacman -Syu --noconfirm --needed --overwrite '*' base-devel git
+
+      - name: Create an unprivileged builder
+        # makepkg refuses to run as root, and this container has no sudo, so the
+        # only way to drop privileges is su.
         run: |
-          pacman -Sy --noconfirm --needed base-devel git
-          useradd -m builder
-          chown -R builder /__w/${{ github.repository }}
-          printf '[builder]\nALL=(ALL) NOPASSWD: ALL\n' \
-            | sudo tee /etc/sudoers.d/builder
-      - name: Make a release tarball from HEAD
+          useradd -m -s /bin/bash builder
+          install -d -o builder -g builder /tmp/pkg
+
+      - name: Build a release tarball from HEAD
         run: |
-          mkdir -p /tmp/pkg && cd /tmp/pkg
-          git -C "$GITHUB_WORKSPACE" archive \
-            --format=tar.gz --prefix=kgx-compact-1.0.0/ \
-            -o kgx-compact-1.0.0.tar.gz HEAD
+          # checkout's .git is owned by root, which git refuses to use as-is.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          cd /tmp/pkg
+          version=$(sed -n 's/^pkgver=//p' "$GITHUB_WORKSPACE/pkg/PKGBUILD" | head -n1)
+          git -C "$GITHUB_WORKSPACE" archive --format=tar.gz \
+            --prefix="kgx-compact-$version/" -o "kgx-compact-$version.tar.gz" HEAD
           cp "$GITHUB_WORKSPACE/pkg/PKGBUILD" .
+          chown -R builder:builder /tmp/pkg
+
       - name: makepkg
-        run: sudo -u builder makepkg -f --noconfirm --skippgpcheck --nodeps
-      - name: Show what the package would install
-        run: tar -tzf /tmp/pkg/*.pkg.tar.zst | sort
+        run: su builder -c 'cd /tmp/pkg && makepkg -f --noconfirm --skippgpcheck --nodeps'
+
+      - name: Show what the package installs
+        run: |
+          echo "--- package contents ---"
+          tar --zstd -tvf /tmp/pkg/kgx-compact-*.pkg.tar.zst | awk '{print $NF}' | sort
+          echo
+          echo "--- enabling? ---"
+          echo "expect none: this package installs per-user files and enables nothing"
+          rpm -qp --scripts /tmp/pkg/kgx-compact-*.pkg.tar.zst 2>/dev/null | tail -5 || echo "(no scriptlets)"

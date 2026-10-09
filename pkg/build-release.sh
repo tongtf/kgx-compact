@@ -8,8 +8,8 @@
 # makepkg resolves the source directory as $srcdir/$pkgname-$pkgver.
 set -eu
 
-HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-ROOT=$(CDPATH= cd -- "$HERE/.." && pwd)
+HERE=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+ROOT=$(CDPATH='' cd -- "$HERE/.." && pwd)
 OUT=${1:-/tmp/kgx-compact-release}
 
 [ -d "$ROOT/.git" ] || { echo "build-release.sh must run inside the git checkout" >&2; exit 1; }

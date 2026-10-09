@@ -23,7 +23,7 @@ CSS_FILE="${XDG_CONFIG_HOME:-$PREFIX/.config}/gtk-4.0/gtk.css"
 BEGIN_MARK="/* >>> kgx-compact (managed block, do not edit inside) >>> */"
 END_MARK="/* <<< kgx-compact <<< */"
 
-SRC=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+SRC=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 MODE=install
 
 for arg in "$@"; do

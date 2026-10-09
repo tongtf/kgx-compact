@@ -8,7 +8,7 @@
 # which keeps `check()` usable inside a build chroot.
 set -u
 
-SRC=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+SRC=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 SANDBOX=$(mktemp -d)
 PASS=0
 FAIL=0
@@ -21,8 +21,34 @@ ok()  { PASS=$((PASS+1)); printf '  ok    %s\n' "$1"; }
 bad() { FAIL=$((FAIL+1)); printf '  FAIL  %s\n' "$1"; [ $# -gt 1 ] && printf '        %s\n' "$2"; }
 skip(){ SKIP=$((SKIP+1)); printf '  skip  %s\n' "$1"; }
 
+# assert <description> <command...>
+#
+# Deliberately not written as `[ cond ] && ok .. || bad ..`: that idiom runs `bad` as
+# well whenever `ok` returns non-zero, which for a test harness is a false failure.
+assert() {
+    _desc=$1
+    shift
+    if "$@"; then
+        ok "$_desc"
+    else
+        bad "$_desc"
+    fi
+}
+
+# Same, for the negations that would read worse with assert.
+refute() {
+    _desc=$1
+    shift
+    if "$@"; then
+        bad "$_desc"
+    else
+        ok "$_desc"
+    fi
+}
+
 fresh_home() {
-    rm -rf "$SANDBOX/home"
+    # ${SANDBOX:?} so an unset mktemp result can never turn into `rm -rf /home`.
+    rm -rf "${SANDBOX:?}/home"
     mkdir -p "$SANDBOX/home/.config/gtk-4.0"
     printf '/* user rules */\nwindow.mine { color: red; }\n' > "$SANDBOX/home/.config/gtk-4.0/gtk.css"
 }
@@ -152,45 +178,43 @@ echo
 echo "installer"
 fresh_home
 HOME="$SANDBOX/home" "$SRC/install.sh" >/dev/null 2>&1
-[ -x "$SANDBOX/home/.local/bin/kgx-compact" ] && ok "wrapper installed and executable" || bad "wrapper"
-[ -f "$SANDBOX/home/.local/share/kgx-overlay/kgx-window.ui" ] && ok "overlay generated" || bad "overlay"
-[ "$(cat "$SANDBOX/home/.local/share/kgx-overlay/.supported-major" 2>/dev/null)" = "51" ] \
-    && ok "version stamp written" || bad "version stamp"
+assert "wrapper installed and executable" test -x "$SANDBOX/home/.local/bin/kgx-compact"
+assert "overlay generated" test -f "$SANDBOX/home/.local/share/kgx-overlay/kgx-window.ui"
+assert "version stamp written" \
+    test "$(cat "$SANDBOX/home/.local/share/kgx-overlay/.supported-major" 2>/dev/null)" = "51"
 
 CSS="$SANDBOX/home/.config/gtk-4.0/gtk.css"
-grep -qF 'window.mine' "$CSS" && ok "user's own CSS rules preserved" || bad "user CSS lost"
-[ "$(grep -cF 'kgx-compact (managed block' "$CSS")" = "1" ] \
-    && ok "exactly one managed block" || bad "managed block count"
-grep -qF 'compact-tab-bar' "$CSS" && ok "stylesheet content installed" || bad "stylesheet content"
+assert "user's own CSS rules preserved" grep -qF 'window.mine' "$CSS"
+assert "exactly one managed block" \
+    test "$(grep -cF 'kgx-compact (managed block' "$CSS")" = "1"
+assert "stylesheet content installed" grep -qF 'compact-tab-bar' "$CSS"
 
 # A pre-existing hand-written (unmarked) copy must be flagged, not silently doubled.
 # Uses its own HOME so it cannot disturb the state the tests below rely on.
 rm -rf "$SANDBOX/home2"; mkdir -p "$SANDBOX/home2/.config/gtk-4.0"
 cp "$SRC/src/gtk.css" "$SANDBOX/home2/.config/gtk-4.0/gtk.css"
-HOME="$SANDBOX/home2" "$SRC/install.sh" 2>&1 | grep -q "WARNING" \
-    && ok "warns about unmarked kgx rules already in the stylesheet" \
-    || bad "installer silently duplicated unmarked kgx rules"
+HOME="$SANDBOX/home2" "$SRC/install.sh" >"$SANDBOX/home2.log" 2>&1
+assert "warns about unmarked kgx rules already in the stylesheet" \
+    grep -q WARNING "$SANDBOX/home2.log"
 
 cp "$CSS" "$SANDBOX/css1"
 HOME="$SANDBOX/home" "$SRC/install.sh" >/dev/null 2>&1
-cmp -s "$CSS" "$SANDBOX/css1" && ok "reinstall is idempotent" || bad "reinstall changed the stylesheet"
+assert "reinstall is idempotent" cmp -s "$CSS" "$SANDBOX/css1"
 
 # Editing inside the managed block must be undone by a refresh.
 sed -i 's/min-height: 0;/min-height: 999px;/' "$CSS" 2>/dev/null || true
 HOME="$SANDBOX/home" "$SRC/install.sh" >/dev/null 2>&1
-grep -qF 'min-height: 999px;' "$CSS" && bad "stale managed-block edit survived refresh" \
-    || ok "refresh replaces the managed block"
+refute "refresh replaces the managed block" grep -qF "min-height: 999px;" "$CSS"
 
 # --print-plan must write nothing.
 cp "$CSS" "$SANDBOX/css2"
 HOME="$SANDBOX/home" "$SRC/install.sh" --print-plan >/dev/null 2>&1
-cmp -s "$CSS" "$SANDBOX/css2" && ok "--print-plan writes nothing" || bad "--print-plan modified files"
+assert "--print-plan writes nothing" cmp -s "$CSS" "$SANDBOX/css2"
 
 HOME="$SANDBOX/home" "$SRC/install.sh" --uninstall >/dev/null 2>&1
-[ ! -f "$SANDBOX/home/.local/bin/kgx-compact" ] && ok "uninstall removes the wrapper" || bad "wrapper left"
-grep -qF 'window.mine' "$CSS" && ok "uninstall keeps the user's CSS" || bad "uninstall lost user CSS"
-grep -qF 'kgx-compact (managed block' "$CSS" && bad "uninstall left the managed block" \
-    || ok "uninstall strips the managed block"
+assert "uninstall removes the wrapper" test ! -f "$SANDBOX/home/.local/bin/kgx-compact"
+assert "uninstall keeps the user's CSS" grep -qF 'window.mine' "$CSS"
+refute "uninstall strips the managed block" grep -qF "kgx-compact (managed block" "$CSS"
 echo
 
 # ---------------------------------------------------------------------- overlay ui
