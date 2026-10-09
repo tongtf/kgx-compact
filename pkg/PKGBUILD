@@ -11,7 +11,11 @@ optdepends=(
   "gnome-shell: set the default terminal from GNOME Settings"
 )
 makedepends=()
-source=()
+source=("$pkgname-$pkgver.tar.gz")
+# The tarball is generated from git HEAD by pkg/build-release.sh, so its checksum is
+# different for every commit and cannot be pinned in the repo. SKIP is the honest
+# value here; this package is not distributed by a repository.
+sha256sums=('SKIP')
 
 # This package ships no compiled code and installs only into the invoking user's home,
 # because the whole mechanism is G_RESOURCE_OVERLAYS plus a GTK4 user stylesheet - both

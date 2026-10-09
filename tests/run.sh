@@ -274,6 +274,14 @@ assert "PKGBUILD and debian/changelog agree on the version" \
     test -n "$pkgver" -a "$pkgver" = "$debver"
 assert "debian source format is native" \
     grep -qx '3.0 (native)' "$SRC/debian/source/format"
+# makepkg 7.1 no longer defaults `source` to $pkgname-$pkgver.tar.gz, so an
+# under-specified PKGBUILD silently extracts nothing and then fails in build() with
+# "cd: .../src/kgx-compact-1.0.0: No such file or directory". Pin it explicitly.
+# Pattern avoids a literal $ so shellcheck does not flag intended non-expansion.
+assert "PKGBUILD declares its source tarball explicitly" \
+    grep -qx 'source=(".*tar.gz")' "$SRC/pkg/PKGBUILD"
+assert "PKGBUILD has a sha256sums entry (makepkg refuses to extract without one)" \
+    grep -q '^sha256sums=' "$SRC/pkg/PKGBUILD"
 # Both packaging recipes must install the same launcher under the same name.
 assert "PKGBUILD installs the launcher as kgx-compact-install" \
     grep -q 'usr/bin/kgx-compact-install' "$SRC/pkg/PKGBUILD"

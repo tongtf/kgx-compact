@@ -111,7 +111,9 @@ jobs:
           cp pkg/PKGBUILD /tmp/pkg/
           chown -R builder:builder /tmp/pkg
       - name: makepkg
-        run: su builder -c 'cd /tmp/pkg && makepkg -f --noconfirm --skippgpcheck --nodeps'
+        run: |
+          set -x
+          su builder -c 'cd /tmp/pkg && makepkg -f --noconfirm --skippgpcheck --nodeps'
       - name: Show what the package installs
         run: |
           set -x
