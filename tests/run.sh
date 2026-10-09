@@ -72,7 +72,12 @@ sys.exit(0 if Gdk.Display.get_default() is not None else 1)
 PY
 }
 have_kgx()     { [ -x "${KGX_BIN:-/usr/bin/kgx}" ]; }
+# PyGObject: needed by the type-check and the widget-level CSS checks.
 have_py()      { python3 -c 'import gi' 2>/dev/null; }
+
+# python3 itself. Everything except the packaging-consistency checks needs it, and a
+# packaging build must not fail just because it is absent.
+have_python3() { command -v python3 >/dev/null 2>&1; }
 
 # The lowest Console this overlay is written against. Anything older has a different
 # window template, and kgx-patch.py will (correctly) refuse to patch it - so the
@@ -101,7 +106,9 @@ echo
 
 # ---------------------------------------------------------------- fragment is valid
 echo "overlay fragment"
-if python3 -c "
+if ! have_python3; then
+    skip "compact-tab-bar.ui.xml (no python3)"
+elif python3 -c "
 import xml.etree.ElementTree as ET
 r = ET.parse('$SRC/overlay/compact-tab-bar.ui.xml').getroot()
 assert r.tag == 'object', 'fragment must be a bare <object>'
@@ -116,7 +123,7 @@ else
 fi
 echo
 
-if have_kgx && console_supported; then
+if have_kgx && console_supported && have_python3; then
 
 # --------------------------------------------------------------------- generator
 echo "overlay generator (Console $(console_major))"
@@ -297,6 +304,8 @@ else
     _m=$(console_major 2>/dev/null || true)
     if [ -n "$_m" ] && [ "$_m" -lt "$MIN_CONSOLE_MAJOR" ] 2>/dev/null; then
         _why="installed Console is $_m, this overlay targets $MIN_CONSOLE_MAJOR+"
+    elif ! have_python3; then
+        _why="no python3 on PATH"
     fi
     echo "skip  generator / installer / overlay checks ($_why)"
     echo "      kgx-patch.py would refuse these on purpose; see docs/UPGRADING.md"

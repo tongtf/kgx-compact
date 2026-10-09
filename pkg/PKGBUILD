@@ -21,7 +21,8 @@ source=()
 
 build() {
     cd "$srcdir/$pkgname-$pkgver"
-    python3 -m compileall -q tools >/dev/null 2>&1 || true
+    # Nothing to compile. The syntax check is the one real build step, and it is worth
+    # having: a broken install.sh should fail the build, not a user's terminal.
     bash -n install.sh
 }
 

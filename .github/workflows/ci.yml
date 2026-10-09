@@ -87,7 +87,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install packaging tools
-        run: pacman -Syu --noconfirm --needed --overwrite '*' base-devel git
+        # python3 too: debian/rules and tests/run.sh use it, and base-devel does not
+        # guarantee it.
+        run: pacman -Syu --noconfirm --needed --overwrite '*' base-devel git python
       - name: Create an unprivileged builder
         # makepkg refuses to run as root, and this container has no sudo.
         run: |
@@ -124,8 +126,10 @@ jobs:
       - name: Install packaging tools
         run: |
           apt-get update -qq
+          # python3 satisfies the Build-Depends in debian/control: dpkg-buildpackage
+          # checks build-deps but does not install them, so it is listed here.
           apt-get install -y -qq --no-install-recommends \
-            debhelper build-essential fakeroot ca-certificates
+            debhelper build-essential fakeroot ca-certificates python3
       - name: Build the package
         run: |
           set -eux
